@@ -1,0 +1,175 @@
+<?php
+
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register web routes for your application. These
+| routes are loaded by the RouteServiceProvider within a group which
+| contains the "web" middleware group. Now create something great!
+|
+*/
+use Illuminate\Support\Facades\Input;
+use Illuminate\Http\Request;
+use Dialogflow\Action\Responses\BasicCard;
+use Dialogflow\Action\Questions\ListCard;
+use Dialogflow\Action\Questions\ListCard\Option;
+
+function email($subject,$template,$phone) {
+$content = '';
+if ($template=='1') {
+	$content = "Dzień dobry,\r\n\r\nProszę o kontakt z psychoonkologiem.\r\n\r\n ".$phone;
+}
+if ($template=='2') {
+	$content = "Dzień dobry,\r\n\r\nProszę o kontakt w sprawie zostania podopiecznym Fundacji.\r\n\r\n".$phone;
+}
+if ($template=='3') {
+	$content = "Dzień dobry,\r\n\r\nProszę o kontakt w sprawie akcji daj włos.\r\n\r\n".$phone;
+}
+if ($template=='4') {
+	$content = $subject."\r\n\r\n".$phone;
+	$subject = 'Prośba o kontakt z infolinii';
+}
+$params = ['content' => $content, 'phone'=>$phone,'subject'=>$subject];
+ Mail::send(
+          ['text' => 'mail'], //e.g post/mail.blade.php <view file mentioned here>
+          $params,
+          function($message) use ($params){
+              $message->to('raknroll_bot@wp.pl','raknroll_bot@wp.pl');
+              $message->subject($params['subject']);
+              $message->from('andrzej.gorecki@gpasa.com','RakNRoll Bot');
+          }
+       );
+}
+Route::get('/', function () {
+    return view('welcome');
+});
+
+Route::get('/logs', function() {
+$d = file_get_contents ( '/home/rakroll/storage/logs/laravel.log');
+$x = explode("\n",$d);
+foreach (array_reverse($x) as $line) {
+$output.= "<div>".$line."</div>";
+}
+return view('logs',compact('output'));
+});
+
+Route::get('/process_voicebot_2', function() {
+$content = "<Response><Say language='pl-PL'>Niestety! Opcja nie została rozpoznana. Do widzenia!</Say><Hangup/></Response>";
+if ($_REQUEST['Digits'][0]=='1') { 
+		$content ='Możesz to sprawdzić dzięki narzędziu Sprawdź Włos na naszej stronie: aplikacja.daj-wlos.pl. Jeżeli nie ma Cię w bazie, a Twoje włosy były wysłane ponad 2 miesiące temu, podaj swój numer na klawiaturze numerycznej i zakończ krzyżykiem, oddzwonimy.';
+		$resp = "<Response><Gather action='/process_voicebot_mail/3' method='GET' input='dtmf' timeout='10' language='pl-PL'><Say language='pl-PL'>".$content."</Say></Gather><Hangup/></Response>";
+}
+if ($_REQUEST['Digits'][0]=='2') { 
+	$content = 'Włosy na peruki muszą mieć minimum 25 cm długości, być umyte bez odżywki, splecione w warkocze i nie mogą być rozjaśniane. Jeżeli twoje włosy spełniają powyższe warunki możesz zostać naszym darczyńcą. Wypełnij oświadczenie on-line na stronie i wyślij je razem z włosami. Lokalizacje współpracujących salonów fryzjerskich i wszystkie szczegóły  znajdziesz na stronie raknroll.pl/dajwlos';
+	$resp = "<Response><Say language='pl-PL'>".$content."</Say><Hangup/></Response>";
+}
+return response($resp)->header('Content-Type','application/xml; charset=utf-8');
+
+
+});
+
+Route::get('/process_voicebot_4', function() {
+$content = $_REQUEST['SpeechResult'];
+file_put_contents('/home/rakroll/storage/'.$_REQUEST['CallSid'].'-01.log',$content);
+$content =  "<Response><Gather action='/process_voicebot_mail/4' method='GET' input='dtmf' timeout='10' language='pl-PL'><Say language='pl-PL'>Proszę podaj swój numer na klawiaturze numerycznej i zakończ krzyżykiem. Oddzwonimy!</Say></Gather></Response>";
+return response($content)->header('Content-Type','application/xml; charset=utf-8');
+});
+
+
+Route::get('/process_voicebot_mail/{number}',function($number) {
+	if ($number==1) {
+		$phone = str_replace("@sip.zadarma.com","",$_REQUEST['Caller']);
+		$phone = str_replace("sip:","",$phone);
+		$phone = "Numer z którego wykonano połączenie: ".$phone."\r\nNumer który podał użytkownik: ".$_REQUEST['Digits'];
+		email('Prośba o kontakt z psychoonkologiem','1',$phone);
+		$content = "<Response><Say language='pl-PL'>Zapisałam. Skontaktujemy się w najbliższym możliwym terminie.</Say><Hangup/></Response>";
+		return response($content)->header('Content-Type','application/xml; charset=utf-8');
+	}
+	if ($number==2) {
+		$phone = str_replace("@sip.zadarma.com","",$_REQUEST['Caller']);
+		$phone = str_replace("sip:","",$phone);
+		$phone = "Numer z którego wykonano połączenie: ".$phone."\r\nNumer który podał użytkownik: ".$_REQUEST['Digits'];
+		email('Prośba o kontakt w sprawie podopiecznych','2',$phone);
+		$content = "<Response><Say language='pl-PL'>Zapisałam. Skontaktujemy się w najbliższym możliwym terminie.</Say><Hangup/></Response>";
+		return response($content)->header('Content-Type','application/xml; charset=utf-8');
+	}
+        if ($number==3) {
+                $phone = str_replace("@sip.zadarma.com","",$_REQUEST['Caller']);
+                $phone = str_replace("sip:","",$phone);
+                $phone = "Numer z którego wykonano połączenie: ".$phone."\r\nNumer który podał użytkownik: ".$_REQUEST['Digits'];
+                email('Prośba o kontakt w sprawie akcji daj włos','3',$phone);
+		$content = "<Response><Say language='pl-PL'>Zapisałam. Skontaktujemy się w najbliższym możliwym terminie.</Say><Hangup/></Response>";
+                return response($content)->header('Content-Type','application/xml; charset=utf-8');
+        }
+	if ($number==4) {
+                $phone = str_replace("@sip.zadarma.com","",$_REQUEST['Caller']);
+                $phone = str_replace("sip:","",$phone);
+                $phone = "Numer z którego wykonano połączenie: ".$phone."\r\nNumer który podał użytkownik: ".$_REQUEST['Digits'];
+		//TU MUSI BYC KONTENT Z POPRZEDNIEGO REQUESTU
+		$content = file_get_contents('/home/rakroll/storage/'.$_REQUEST['CallSid'].'-01.log');
+                email($content,'4',$phone);
+		$content = "<Response><Say language='pl-PL'>Zapisałam. Skontaktujemy się w najbliższym możliwym terminie.</Say><Hangup/></Response>";
+                return response($content)->header('Content-Type','application/xml; charset=utf-8');
+        }
+
+
+});
+
+Route::get('/process_voicebot', function() {
+Log::info('Processing voicebot command',Input::all());
+
+$option = 0;
+
+if (($_REQUEST['Digits'][0]=='1') || (strpos($_REQUEST['SpeechResult'],'wsparcia'))) { $option=1;}
+if (($_REQUEST['Digits'][0]=='2') || (strpos($_REQUEST['SpeechResult'],'podopiecznym'))) { $option=2;}
+if (($_REQUEST['Digits'][0]=='3') || (strpos($_REQUEST['SpeechResult'],'daj włos'))) { $option=3;}
+if (($_REQUEST['Digits'][0]=='4') || (strpos($_REQUEST['SpeechResult'],'inne'))) { $option=4;}
+
+switch($option) {
+	case 1:
+		$content =  "<Response><Gather action='/process_voicebot_mail/1' method='GET' input='dtmf' timeout='10' language='pl-PL'><Say language='pl-PL'>Oferujemy bezpłatne konsultacje z psychoonkologiem. Proszę podaj swój numer na klawiaturze numerycznej i zakończ krzyżykiem, oddzwonimy do Ciebie</Say></Gather><Say language='pl-PL'>Dziękujemy! Do usłyszenia!</Say></Response>";
+		break;
+	case 2:
+		$content = "<Response><Gather action='/process_voicebot_mail/2' method='GET' input='dtmf' timeout='10' language='pl-PL'><Say language='pl-PL'>Aby zostać podopiecznym wypełnij formularz, ktory znajdziesz na naszej stronie internetowej w zakładce szukam pomocy, zostań podopiecznym. Jeżeli masz dodatkowe pytania, podaj swój numer na klawiaturze numerycznej i zakończ krzyżykiem, oddzwonimy.</Say></Gather></Response>";
+		break;
+	case 3:
+		$content =  "<Response><Gather action='/process_voicebot_2' method='GET' input='dtmf' timeout='10' numDigits='1' language='pl-PL'><Say language='pl-PL'>Jeżeli chcesz sprawdzić, czy dotarły do nas twoje włosy wybierz 1, jeżeli chcesz podarować włosy wybierz 2.</Say></Gather></Response>";
+		break;
+	case 4:
+		$content = "<Response><Gather action='/process_voicebot_4' method='GET' input='speech' timeout='10' speechTimeout='auto' language='pl-PL'><Say language='pl-PL'>Opisz proszę krótko czego chcesz się dowiedzieć.</Say></Gather></Response>";
+		break;
+	default:
+		$content = "<Response><Say language='pl-PL'>Wystąpił błąd. Do widzenia!.</Say></Response><Hangup/>";
+}
+
+//$content =  "<Response><Say language='pl-PL'>Wcisnąłęś " . $_REQUEST['Digits'] . "</Say></Response>";
+return response($content)->header('Content-Type','application/xml; charset=utf-8');
+
+});
+Route::post('/voicebot', function(Request $request) {
+$content = "
+<Response>
+<Gather action='/process_voicebot' method='GET' input='dtmf' timeout='5' numDigits='1' language='pl-PL'>
+    <Say language='pl-PL'>Cześć, jestem asystentką głosową i postaram Ci się pomóc poza godzinami pracy Fundacji. Wybierz jedną z opcji: Potrzebuję wsparcia wciśnij 1.  Chce zostać podopiecznym fundacji wciśnij 2. Program Daj Włos! wciśnij 3.
+Inne - wciśnij 4.</Say>
+</Gather>
+<Say language='pl-PL'>Niestety , nie otrzymalem żadnej opcji! . Do widzienia!</Say>
+</Response>
+";
+return response($content)->header('Content-Type','application/xml; charset=utf-8');
+});
+
+Route::post('/dialogflow', function(Request $request) {
+	$agent = \Dialogflow\WebhookClient::fromData($request->json()->all());
+
+	Log::info('Processing dialogflow command',Input::all());
+	$agent->reply('Cześć! Jestem Chat\'n\'Roll i chętnie odpowiem na Twoje pytania. W czym mogę pomóc? ');
+	$suggestion = \Dialogflow\RichMessage\Suggestion::create(['Wsparcie psychologiczne', 'Daj Włos!','Odbierz perukę','Zostań podopiecznym','Godziny pracy biura/skontaktuj się bezpośrednio']);
+	$agent->reply($suggestion);
+
+	
+
+	return response()->json($agent->render());
+});
